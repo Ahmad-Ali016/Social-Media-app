@@ -43,3 +43,9 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid email or password")
         attrs['user'] = user
         return attrs
+
+class UserListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'email', 'username', 'bio', 'gender', 'profile_picture', 'is_log_in')  # Include online status
+

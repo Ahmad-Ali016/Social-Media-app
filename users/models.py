@@ -28,6 +28,8 @@ class User(AbstractUser):
     # Account privacy
     is_private_account = models.BooleanField(default=False)
 
+    is_log_in = models.BooleanField(default=False)  # Tracks if user is currently logged in
+
     # User creation timestamp
     created_at = models.DateTimeField(auto_now_add=True)
 
