@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from users.serializers import RegisterSerializer, LoginSerializer, UserListSerializer
 from django.contrib.auth import get_user_model
+from rest_framework.permissions import IsAuthenticated
 
 # Create your views here.
 
@@ -63,3 +64,24 @@ class UserListView(APIView):
         users = User.objects.all()
         serializer = UserListSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]  # Only logged-in users can logout
+
+    def post(self, request):
+        user = request.user
+
+        # Mark user as logged out
+        user.is_log_in = False
+        user.save(update_fields=['is_log_in'])
+
+        # Blacklist refresh token (optional)
+        refresh_token = request.data.get("refresh")
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception as e:
+                return Response({"detail": "Invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"detail": "Logged out successfully"}, status=status.HTTP_200_OK)
