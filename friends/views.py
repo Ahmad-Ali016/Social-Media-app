@@ -8,11 +8,12 @@ from django.db.models import Q
 
 from users.models import User
 from friends.models import Friendship, FriendRequest
+from friends.serializers import IncomingFriendRequestSerializer
+
 
 # Create your views here.
 
 class SendFriendRequestView(APIView):
-
     # Allows authenticated user to send a friend request
 
     permission_classes = [IsAuthenticated]
@@ -64,4 +65,84 @@ class SendFriendRequestView(APIView):
         return Response(
             {"message": "Friend request sent successfully."},
             status=status.HTTP_201_CREATED
+        )
+
+
+class IncomingFriendRequestsView(APIView):
+    # Returns all pending friend requests where logged-in user is the receiver
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Get only pending requests where user is receiver
+        incoming_requests = FriendRequest.objects.filter(
+            receiver=user,
+            status='pending'
+        ).order_by('-created_at')
+
+        serializer = IncomingFriendRequestSerializer(incoming_requests, many=True)
+        return Response(serializer.data)
+
+
+class AcceptFriendRequestView(APIView):
+
+    # Allows receiver to accept a pending friend request
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, request_id):
+        user = request.user
+
+        # Get the friend request or return 404
+        friend_request = get_object_or_404(FriendRequest, id=request_id)
+
+        # 1- Ensure logged-in user is the receiver
+        if friend_request.receiver != user:
+            return Response(
+                {"error": "You are not authorized to accept this request."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 2- Ensure request is still pending
+        if friend_request.status != 'pending':
+            return Response(
+                {"error": "This friend request is not pending."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sender = friend_request.sender
+        receiver = friend_request.receiver
+
+        # 3- Prevent duplicate friendships (extra safety)
+        friendship_exists = Friendship.objects.filter(
+            Q(user1=sender, user2=receiver) |
+            Q(user1=receiver, user2=sender)
+        ).exists()
+
+        if friendship_exists:
+            return Response(
+                {"error": "Friendship already exists."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 4- Update request status
+        friend_request.status = 'accepted'
+        friend_request.save()
+
+        # 5- Create Friendship (enforce ordering to prevent duplicates)
+        if sender.id < receiver.id:
+            user1, user2 = sender, receiver
+        else:
+            user1, user2 = receiver, sender
+
+        Friendship.objects.create(
+            user1=user1,
+            user2=user2
+        )
+
+        return Response(
+            {"message": "Friend request accepted."},
+            status=status.HTTP_200_OK
         )
