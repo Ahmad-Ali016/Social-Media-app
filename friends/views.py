@@ -8,7 +8,7 @@ from django.db.models import Q
 
 from users.models import User
 from friends.models import Friendship, FriendRequest
-from friends.serializers import IncomingFriendRequestSerializer, FriendListSerializer
+from friends.serializers import FriendListSerializer, FriendRequestSerializer
 
 
 # Create your views here.
@@ -68,22 +68,42 @@ class SendFriendRequestView(APIView):
         )
 
 
-class IncomingFriendRequestsView(APIView):
-    # Returns all pending friend requests where logged-in user is the receiver
+class PendingFriendRequestsView(APIView):
+    """
+    Returns:
+      - Incoming pending friend requests
+      - Outgoing pending friend requests
+    """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-
-        # Get only pending requests where user is receiver
+        # Incoming requests (received by user)
         incoming_requests = FriendRequest.objects.filter(
-            receiver=user,
-            status='pending'
-        ).order_by('-created_at')
+            receiver=request.user,
+            status="pending"
+        )
 
-        serializer = IncomingFriendRequestSerializer(incoming_requests, many=True)
-        return Response(serializer.data)
+        # Outgoing requests (sent by user)
+        outgoing_requests = FriendRequest.objects.filter(
+            sender=request.user,
+            status="pending"
+        )
+
+        incoming_serializer = FriendRequestSerializer(
+            incoming_requests,
+            many=True
+        )
+
+        outgoing_serializer = FriendRequestSerializer(
+            outgoing_requests,
+            many=True
+        )
+
+        return Response({
+            "incoming": incoming_serializer.data,
+            "outgoing": outgoing_serializer.data
+        })
 
 
 class FriendRequestActionView(APIView):
@@ -162,27 +182,26 @@ class FriendRequestActionView(APIView):
                 status=status.HTTP_200_OK
             )
 
-        # if request == REJECT/CANCEL
-        if action == "reject":
-            # Only receiver can reject
-            if request.user != friend_request.receiver:
+        # REQUEST == DELETE (CANCEL)
+        if action == "delete":
+            # Only sender can cancel pending request
+            if request.user != friend_request.sender:
                 return Response(
-                    {"error": "Only receiver can reject this request."},
+                    {"error": "Only sender can cancel this request."},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
             if friend_request.status != "pending":
                 return Response(
-                    {"error": "Request is not pending."},
+                    {"error": "Only pending requests can be deleted."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            friend_request.status = "rejected"
-            friend_request.save()
+            friend_request.delete()
 
             return Response(
-                {"message": "Friend request rejected."},
-                status=status.HTTP_200_OK
+                {"message": "Friend request cancelled."},
+                status=status.HTTP_204_NO_CONTENT
             )
 
 
