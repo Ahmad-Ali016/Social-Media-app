@@ -8,8 +8,7 @@ from django.db.models import Q
 
 from users.models import User
 from friends.models import Friendship, FriendRequest
-from friends.serializers import IncomingFriendRequestSerializer
-
+from friends.serializers import IncomingFriendRequestSerializer, FriendListSerializer
 
 # Create your views here.
 
@@ -146,3 +145,40 @@ class AcceptFriendRequestView(APIView):
             {"message": "Friend request accepted."},
             status=status.HTTP_200_OK
         )
+
+class FriendListView(APIView):
+
+    # Returns all friends of logged-in user
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Get all friendships where user is either user1 or user2
+        friendships = Friendship.objects.filter(
+            Q(user1=user) | Q(user2=user)
+        )
+
+        friends = []
+
+        # Extract the other user from each friendship
+        for friendship in friendships:
+            if friendship.user1 == user:
+                friends.append(friendship.user2)
+            else:
+                friends.append(friendship.user1)
+
+        friend_serializer = FriendListSerializer(friends, many=True)
+
+        # Serialize logged in user
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email
+        }
+
+        return Response({
+            "user": user_data,
+            "friends": friend_serializer.data
+        })

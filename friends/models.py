@@ -65,5 +65,3 @@ class Friendship(models.Model):
 
     def __str__(self):
         return f"{self.user1} ↔ {self.user2}"
-
-FriendRequest.objects.all()
