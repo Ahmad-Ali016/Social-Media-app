@@ -14,24 +14,24 @@ from friends.serializers import FriendListSerializer, FriendRequestSerializer
 # Create your views here.
 
 class SendFriendRequestView(APIView):
-    # Allows authenticated user to send a friend request
+
+    # Allows authenticated user to send a friend request. Implements directional logic for rejected requests.
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request, username):
-        sender = request.user  # Logged-in user
 
-        # Get receiver user or return 404
+        sender = request.user
         receiver = get_object_or_404(User, username=username)
 
-        # 1- Prevent sending request to yourself
+        # 1- Prevent self-request
         if sender == receiver:
             return Response(
                 {"error": "You cannot send friend request to yourself."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 2- Check if already friends
+        # 2- Already friends?
         already_friends = Friendship.objects.filter(
             Q(user1=sender, user2=receiver) |
             Q(user1=receiver, user2=sender)
@@ -43,30 +43,47 @@ class SendFriendRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 3- Check if friend request already exists (any direction)
-        existing_request = FriendRequest.objects.filter(
-            Q(sender=sender, receiver=receiver) |
-            Q(sender=receiver, receiver=sender)
+        # 3- Check pending request in either direction
+        pending_exists = FriendRequest.objects.filter(
+            Q(sender=sender, receiver=receiver, status="pending") |
+            Q(sender=receiver, receiver=sender, status="pending")
         ).exists()
 
-        if existing_request:
+        if pending_exists:
             return Response(
-                {"error": "Friend request already exists."},
+                {"error": "A pending friend request already exists."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 4- Create friend request
+        # 4- Check rejected request logic
+
+        # Case A: sender previously rejected by receiver (cannot resend)
+        rejected_same_direction = FriendRequest.objects.filter(
+            sender=sender,
+            receiver=receiver,
+            status="rejected"
+        ).exists()
+
+        if rejected_same_direction:
+            return Response(
+                {"error": "You cannot resend request after being rejected."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Case B: receiver previously rejected sender → allow reverse send
+        # (No block needed — just allow creation)
+
+        # 5- Create new request
         FriendRequest.objects.create(
             sender=sender,
             receiver=receiver,
-            status='pending'
+            status="pending"
         )
 
         return Response(
             {"message": "Friend request sent successfully."},
             status=status.HTTP_201_CREATED
         )
-
 
 class PendingFriendRequestsView(APIView):
     """
