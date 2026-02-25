@@ -257,3 +257,43 @@ class FriendListView(APIView):
             "user": user_data,
             "friends": friend_serializer.data
         })
+
+class UnfriendView(APIView):
+
+    # DELETE -> Remove a user from friend list
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, username):
+        current_user = request.user  # Logged-in user
+
+        # Get the target user to unfriend
+        target_user = get_object_or_404(User, username=username)
+
+        # 1- Prevent unfriending yourself
+        if current_user == target_user:
+            return Response(
+                {"error": "You cannot unfriend yourself."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 2- Check if friendship exists (either direction)
+        friendship = Friendship.objects.filter(
+            Q(user1=current_user, user2=target_user) |
+            Q(user1=target_user, user2=current_user)
+        ).first()
+
+        if not friendship:
+            return Response(
+                {"error": "You are not friends with this user."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3- Delete friendship (allows future friend requests)
+        friendship.delete()
+
+        # 4- Return success message
+        return Response(
+            {"message": "Unfriended successfully. You can send a friend request again."},
+            status=status.HTTP_200_OK
+        )
