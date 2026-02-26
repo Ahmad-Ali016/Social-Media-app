@@ -55,6 +55,26 @@ REST_FRAMEWORK = {
     ),
 }
 
+SIMPLE_JWT = {
+    # Access token lifetime
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),  # Example: 2 hours
+
+    # Refresh token lifetime
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=3),  # Example: 3 days
+
+    # Rotate refresh tokens (optional but recommended)
+    'ROTATE_REFRESH_TOKENS': True,
+
+    # Blacklist old refresh tokens after rotation
+    'BLACKLIST_AFTER_ROTATION': True,
+
+    # Algorithm
+    'ALGORITHM': 'HS256',
+
+    # Token type claim
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
