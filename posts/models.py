@@ -75,3 +75,28 @@ class PostMedia(models.Model):
 
     def __str__(self):
         return f"{self.media_type} for Post {self.post.id}"
+
+class PostLike(models.Model):
+
+    # Represents a like made by a user on a post. One user can like a post only once.
+
+    post = models.ForeignKey(
+        'Post',
+        on_delete=models.CASCADE,
+        related_name='likes'   # post.likes.all()
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='post_likes'  # user.post_likes.all()
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # Prevent duplicate likes
+        unique_together = ('post', 'user')
+
+    def __str__(self):
+        return f"{self.user.email} liked Post {self.post.id}"

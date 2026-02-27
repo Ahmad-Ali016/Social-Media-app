@@ -3,15 +3,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 
-from posts.models import Post, PostMedia
+from posts.models import Post, PostMedia, PostLike
 from posts.serializers import PostSerializer
 from friends.models import Friendship
+
 
 # Create your views here.
 
 class CreatePostView(APIView):
-
     # POST -> Create a new post
     # Supports: Text (optional), Multiple images/videos and Visibility selection
 
@@ -63,8 +64,8 @@ class CreatePostView(APIView):
         serializer = PostSerializer(post, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-class FeedView(APIView):
 
+class FeedView(APIView):
     # Returns: Logged-in user's posts, Friends' posts, Ordered by newest first
 
     permission_classes = [IsAuthenticated]
@@ -93,3 +94,79 @@ class FeedView(APIView):
 
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PostLikeView(APIView):
+    # Handles like / dislike (toggle) on a post explicitly via request body
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, post_id):
+        user = request.user
+        post = get_object_or_404(Post, id=post_id)
+
+        like_status = request.data.get("like_status")
+
+        # Validate input
+        if like_status not in ["like", "dislike"]:
+            return Response(
+                {"error": "like_status must be 'like' or 'dislike'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        #  Visibility Check (CRITICAL)
+
+        # If post is not authored by current user
+        if post.author != user:
+
+            # If visibility is FRIENDS → must be friend
+            if post.visibility == "FRIENDS":
+
+                is_friend = Friendship.objects.filter(
+                    Q(user1=user, user2=post.author) |
+                    Q(user1=post.author, user2=user)
+                ).exists()
+
+                if not is_friend:
+                    return Response(
+                        {"error": "You cannot interact with this post."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
+        # Like / Unlike Logic
+        existing_like = PostLike.objects.filter(
+            post=post,
+            user=user
+        ).first()
+
+        # LIKE
+        if like_status == "like":
+
+            if existing_like:
+                return Response(
+                    {"message": "Post already liked."},
+                    status=status.HTTP_200_OK
+                )
+
+            PostLike.objects.create(post=post, user=user)
+
+            return Response(
+                {"message": "Post liked successfully."},
+                status=status.HTTP_201_CREATED
+            )
+
+        # DISLIKE (Undo)
+        if like_status == "dislike":
+
+            if not existing_like:
+                return Response(
+                    {"message": "Post is not liked yet."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            existing_like.delete()
+
+            return Response(
+                {"message": "Post unliked successfully."},
+                status=status.HTTP_200_OK
+            )
