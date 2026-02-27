@@ -12,13 +12,19 @@ class PostMediaSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 class CommentSerializer(serializers.ModelSerializer):
+
     author_name = serializers.CharField(source='author.username', read_only=True)
     # author_email = serializers.EmailField(source='author.email', read_only=True)
 
+    custom_id = serializers.SerializerMethodField()
+
     class Meta:
         model = Comment
-        fields = ['id', 'author', 'author_name', 'content', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'author', 'author_name', 'created_at', 'updated_at']
+        fields = ['custom_id', 'author_name', 'content', 'created_at', 'updated_at']
+        read_only_fields = ['custom_id', 'author_name', 'created_at', 'updated_at']
+
+    def get_custom_id(self, obj):
+        return f"{obj.post.id}-{obj.comment_number}"
 
 class PostSerializer(serializers.ModelSerializer):
     # Main Post serializer with nested media and engagement counters.

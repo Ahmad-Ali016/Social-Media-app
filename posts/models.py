@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.db.models import Max
 
 # Create your models here.
 
@@ -117,12 +118,29 @@ class Comment(models.Model):
         related_name='comments'
     )
 
+    # Sequential per post
+    comment_number = models.PositiveIntegerField()
+
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ['comment_number']
+        unique_together = ('post', 'comment_number')
+
+    def save(self, *args, **kwargs):
+        # Only generate if not already set
+        if self._state.adding:
+            last_number = Comment.objects.filter(
+                post=self.post
+            ).aggregate(
+                Max('comment_number')
+            )['comment_number__max']
+
+            self.comment_number = (last_number or 0) + 1
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.author.username} - {self.post.id}"
+        return f"{self.post.id}-{self.comment_number}"
