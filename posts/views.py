@@ -5,8 +5,8 @@ from rest_framework import status
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
-from posts.models import Post, PostMedia, PostLike
-from posts.serializers import PostSerializer
+from posts.models import Post, PostMedia, PostLike, Comment
+from posts.serializers import PostSerializer, CommentSerializer
 from friends.models import Friendship
 
 
@@ -95,6 +95,23 @@ class FeedView(APIView):
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+def can_interact(user, post):
+
+    # Who can interact with the post e.g. see, like and comment on post
+
+    if post.author == user:
+        return True
+
+    if post.visibility == "PUBLIC":
+        return True
+
+    if post.visibility == "FRIENDS":
+        return Friendship.objects.filter(
+            Q(user1=user, user2=post.author) |
+            Q(user1=post.author, user2=user)
+        ).exists()
+
+    return False
 
 class PostLikeView(APIView):
     # Handles like / dislike (toggle) on a post explicitly via request body
@@ -170,3 +187,38 @@ class PostLikeView(APIView):
                 {"message": "Post unliked successfully."},
                 status=status.HTTP_200_OK
             )
+
+class CreateCommentView(APIView):
+
+    # Create a comment on a post. Allows multiple comments by same user.
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, post_id):
+        user = request.user
+        post = get_object_or_404(Post, id=post_id)
+
+        # Visibility enforcement
+        if not can_interact(user, post):
+            return Response(
+                {"error": "You cannot comment on this post."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        content = request.data.get("content")
+
+        if not content:
+            return Response(
+                {"error": "Content is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        comment = Comment.objects.create(
+            post=post,
+            author=user,
+            content=content
+        )
+
+        serializer = CommentSerializer(comment)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
