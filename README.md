@@ -153,6 +153,15 @@ Returns the logged-in user's profile.
 
 ------------------------------------------------------------------------
 
+## Edit My Profile
+
+    PUT/PATCH /api/profiles/me/
+
+Enables to edit the user's own profile.
+
+------------------------------------------------------------------------
+
+
 ## User Profile
 
     GET /api/profiles/<username>/
@@ -419,7 +428,7 @@ Authentication header:
 ## Authentication & Users API
 
 | Method | Endpoint               | Description                       | Auth Required |
-| ------ | ---------------------- | --------------------------------- | ------------- |
+|--------|------------------------|-----------------------------------|---------------|
 | POST   | `/api/users/register/` | Register a new user account       | ❌             |
 | POST   | `/api/users/login/`    | Login user and receive JWT tokens | ❌             |
 | POST   | `/api/users/logout/`   | Logout user (invalidate token)    | ✅             |
@@ -427,12 +436,454 @@ Authentication header:
 
 ## Profiles API
 
-| Method | Endpoint                    | Description                  | Auth Required |
-| ------ | --------------------------- | ---------------------------- | ------------- |
-| GET    | `/api/profiles/me/`         | Get logged-in user's profile | ✅             |
-| GET    | `/api/profiles/<username>/` | Get another user's profile   | ✅             |
+| Method    | Endpoint                    | Description                   | Auth Required |
+|-----------| --------------------------- |-------------------------------| ------------- |
+| GET       | `/api/profiles/me/`         | Get logged-in user's profile  | ✅             |
+| PUT/PATCH | `/api/profiles/me/`         | Edit logged-in user's profile | ✅             |
+| GET       | `/api/profiles/<username>/` | Get another user's profile    | ✅             |
 
-## 
+## Friends System API
+
+| Method | Endpoint                             | Description                      | Auth Required |
+| ------ | ------------------------------------ | -------------------------------- | ------------- |
+| POST   | `/api/friends/send/<username>/`      | Send friend request              | ✅             |
+| GET    | `/api/friends/list/`                 | Get user's friend list           | ✅             |
+| GET    | `/api/friends/requests/`             | Get pending friend requests      | ✅             |
+| POST   | `/api/friends/request/<request_id>/` | Accept / Reject / Cancel request | ✅             |
+| DELETE | `/api/friends/unfriend/<username>/`  | Remove friend                    | ✅             |
+
+### Friend Request Actions
+
+Request Body:
+
+``` json
+{
+  "action": "accept"
+}
+```
+
+Possible values:
+
+    accept
+    reject
+    cancel
+
+## Posts API
+
+| Method | Endpoint                                   | Description                    | Auth Required |
+| ------ | ------------------------------------------ | ------------------------------ | ------------- |
+| POST   | `/api/posts/create/`                       | Create a post (text or media)  | ✅             |
+| GET    | `/api/posts/feed/`                         | Get feed (own + friends posts) | ✅             |
+| POST   | `/api/posts/like/<post_id>/`               | Like a post                    | ✅             |
+| POST   | `/api/posts/comment/<post_id>/`            | Create comment on post         | ✅             |
+| PUT    | `/api/posts/comment/modify/<custom_id>/`   | Update comment                 | ✅             |
+| DELETE | `/api/posts/comment/delete-all/<post_id>/` | Delete all comments on a post  | ✅             |
+
+### Comment Custom ID Format
+
+Comments use a custom identifier:
+
+    postID-commentNumber
+
+Example:
+
+    1-1
+    1-2
+    2-1
+
+Meaning:
+
+    <PostID>-<CommentNumber>
+
+### Media Upload
+
+Posts support multiple media uploads.
+
+Field name:
+
+    media
+
+Content-Type:
+
+    multipart/form-data
+
+Example request fields:
+
+| Field      | Type |
+| ---------- | ---- |
+| content    | text |
+| visibility | text |
+| media      | file |
+
+Example:
+
+    media: image1.jpg
+    media: image2.jpg
+    media: video1.mp4
+
+### Feed Logic
+
+Feed returns:
+
+    1. User's own posts
+    2. Friends posts
+    3. Only posts allowed by visibility rules
+
+Visibility options:
+
+    PUBLIC
+    FRIENDS
+    PRIVATE
+
+Feed is ordered:
+
+    Newest first
+
+## Example Feed Response
+
+``` json
+[
+  {
+    "id": 2,
+    "author": 2,
+    "author_name": "testuser1",
+    "author_email": "testuser1@example.com",
+    "content": "Multiple files Media post",
+    "visibility": "FRIENDS",
+    "media": [
+      {
+        "id": 1,
+        "media_type": "IMAGE",
+        "file": "/media/post_media/example.jpg",
+        "created_at": "2026-03-04T21:06:25Z"
+      }
+    ],
+    "likes_count": 0,
+    "comments_count": 0,
+    "comments": [],
+    "created_at": "2026-03-04T21:06:25Z",
+    "updated_at": "2026-03-04T21:06:25Z"
+  }
+]
+```
+
+------------------------------------------------------------------------
+
+# Postman Collection Documentation
+
+Below is the collection structure.
+
+## Collection Name
+
+    Social Media API
+
+## Folder Structure
+
+1- Authentication:
+
+    POST Register
+    POST Login 
+    POST Logout 
+    GET Users List
+
+2- Profiles:
+
+    GET My Profile
+    PUT/PATCH Edit My Profile
+    GET User Profile
+
+3- Friends:
+
+    POST Send Friend Request
+    GET Friend List
+    GET Pending Requests
+    POST Accept/Reject/Cancel Request
+    DELETE Unfriend
+
+4- Posts:
+
+    POST Create Post
+    GET Feed
+    POST Like Post
+    POST Comment Post
+    PUT Modify Comment
+    DELETE Delete All Comments
+
+## Example Postman Request
+
+### Register
+
+POST
+
+    /api/users/register/
+
+Body:
+
+``` json
+{
+  "email": "user@test.com",
+  "username": "testuser",
+  "password": "Password123!",
+  "password2": "Password123!",
+  "bio": "Hello world",
+  "gender": "M"
+}
+```
+
+### Login
+
+POST
+
+    /api/users/login/
+
+Body:
+
+``` json
+{
+  "email": "user@test.com",
+  "password": "Password123!"
+}
+```
+
+Response:
+
+``` json
+{
+  "user": {
+    "email": "user@test.com",
+    "username": "testuser",
+    "bio": "Hello world",
+    "gender": "M",
+    "profile_picture": null,
+    "is_log_in": true
+  },
+  "refresh": "token",
+  "access": "token"
+}
+```
+
+### Authorization Setup in Postman
+
+After login:
+
+    Authorization
+    Type: Bearer Token
+    Token: <access_token>
+
+### Create Post (Postman)
+
+POST
+
+    /api/posts/create/
+
+- Body → form-data
+
+| Key        | Type | Value         |
+| ---------- | ---- | ------------- |
+| content    | Text | My first post |
+| visibility | Text | FRIENDS       |
+| media      | File | image.jpg     |
+
+### Like Post
+
+POST
+
+    /api/posts/like/1/
+
+No body required.
+
+### Comment Post
+
+POST
+
+    /api/posts/comment/1/
+
+Body:
+
+``` json
+{
+  "content": "Nice post!"
+}
+```
+
+### Modify Comment
+
+PUT
+
+    /api/posts/comment/modify/1-1/
+
+``` json
+{
+  "content": "Updated comment"
+}
+```
+
+### Delete All Post Comments
+
+DELETE
+
+    /api/posts/comment/delete-all/1/
+
+## Recommended Postman Environment Variables
+
+| Variable      | Example                      |
+| ------------- | ---------------------------- |
+| base_url      | `https://yourdomain.com/api` |
+| access_token  | JWT token                    |
+| refresh_token | JWT refresh token            |
+
+Example usage:
+
+    {{base_url}}/posts/feed/
+
+## API Architecture & Database ERD
+
+![API & ERD Diagram](docs/api_erd_diagram.png)
+
+## API Architecture/Backend System Design
+
+``` json
+Client (Frontend)
+   |
+   |--- Authorization: Bearer <access_token>
+   |
+Django REST API (Social_Media_app)
+   |
+   |--- Users App
+   |       |-- /register
+   |       |-- /login
+   |       |-- /logout
+   |       |-- /list
+   |
+   |--- Profiles App
+   |       |-- /me/
+   |       |-- /<username>/
+   |
+   |--- Friends App
+   |       |-- /send/<username>/
+   |       |-- /list/
+   |       |-- /requests/
+   |       |-- /request/<request_id>/
+   |       |-- /unfriend/<username>/
+   |
+   |--- Posts App
+           |-- /create/
+           |-- /feed/
+           |-- /like/<post_id>/
+           |-- /comment/<post_id>/
+           |-- /comment/modify/<custom_id>/
+           |-- /comment/delete-all/<post_id>/
+
+Database (SQLite/PostgreSQL)
+   |--- Users Table
+   |--- Profiles Table
+   |--- Friends Table
+   |--- FriendRequests Table
+   |--- Posts Table
+   |--- PostMedia Table
+   |--- PostLikes Table
+   |--- Comments Table
+```
+
+## Relationship Design Diagram
+
+``` json
+User (CustomUser)
+  - id (PK)
+  - email (unique)
+  - username
+  - password
+  - bio
+  - gender
+  - profile_picture
+  - is_private_account
+  - is_log_in
+  - created_at
+
+Profile
+  - id (PK)
+  - user_id (FK → User.id, 1:1)
+  - bio
+  - profile_picture
+  - location
+  - date_of_birth
+  - created_at
+
+FriendRequest
+  - id (PK)
+  - sender_id (FK → User.id)
+  - receiver_id (FK → User.id)
+  - status
+  - created_at
+  - updated_at
+  - UNIQUE(sender_id, receiver_id)
+
+Friendship
+  - id (PK)
+  - user1_id (FK → User.id)
+  - user2_id (FK → User.id)
+  - created_at
+  - UNIQUE(user1_id, user2_id)
+
+Post
+  - id (PK)
+  - author_id (FK → User.id)
+  - content
+  - visibility
+  - created_at
+  - updated_at
+
+PostMedia
+  - id (PK)
+  - post_id (FK → Post.id)
+  - media_type
+  - file
+  - created_at
+
+PostLike
+  - id (PK)
+  - post_id (FK → Post.id)
+  - user_id (FK → User.id)
+  - created_at
+  - UNIQUE(post_id, user_id)
+
+Comment
+  - id (PK)
+  - post_id (FK → Post.id)
+  - author_id (FK → User.id)
+  - comment_number
+  - content
+  - created_at
+  - updated_at
+  - UNIQUE(post_id, comment_number)
+```
+
+------------------------------------------------------------------------
+
+# Installation
+
+```bash
+# Clone repository
+git clone https://github.com/Ahmad-Ali016/Social-Media-app.git
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# Install requirements
+pip install -r requirements.txt
+
+# Run migrations
+python manage.py makemigrations
+python manage.py migrate
+
+# Create superuser
+python manage.py createsuperuser
+
+# Run server
+python manage.py runserver
+```
 
 ------------------------------------------------------------------------
 # Future Improvements
