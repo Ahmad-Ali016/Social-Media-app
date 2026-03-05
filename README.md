@@ -857,7 +857,6 @@ Comment
   - updated_at
   - UNIQUE(post_id, comment_number)
 ```
-
 ------------------------------------------------------------------------
 
 # Installation
